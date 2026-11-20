@@ -6,6 +6,12 @@ places loads on it, and picks a steel or lumber section. The app shows the
 shear, moment, and deflection diagrams and checks whether the beam is
 strong and stiff enough, updating instantly as anything changes.
 
+## Platform
+- Python desktop app using Tkinter, started with `python app.py`
+- Calculations with numpy, kept in their own module, separate from
+  the window code
+- Diagrams drawn with matplotlib, embedded in the window
+
 ## Users
 A civil engineering student checking a homework beam, or an engineer
 sizing a floor beam or deck joist.
@@ -80,11 +86,11 @@ sizing a floor beam or deck joist.
 ## Look and feel
 - Opens with a 20 ft simply supported W12x26 beam with a 1 kip/ft uniform
   load over the full span.
-- Clean and professional, like a commercial engineering web app: light
+- Clean and professional, like a commercial engineering desktop app: light
   background, white cards with soft shadows, one accent color, a modern
   system font, generous spacing. No clutter.
-- Inputs in a panel on the left; drawing, diagrams, and checks on the right.
-  On a phone, the panels stack.
+- Inputs in a panel on the left; the beam, diagrams, and checks on the right.
+- The window can be resized.
 - Every input has a short label with units. Hovering over a check card
   explains the formula used.
 
@@ -102,14 +108,18 @@ sizing a floor beam or deck joist.
 4. Simply supported, 12 ft, 2x10 lumber, uniform 0.05 kip/ft:
    max moment 0.90 kip-ft; fb = 0.505 ksi;
    max deflection 0.147 in; both pass.
+5. Simply supported, 30 ft, W18x35, uniform 2 kips/ft from 0 to 15 ft
+   only: reactions 22.5 k (left) and 7.5 k (right); max moment
+   126.6 kip-ft at 11.25 ft.
 
 ## Out of scope
 - Self-weight, shear stress, lateral-torsional buckling, load combinations,
   continuous beams, saving designs, and 3D rendering.
 
 ## Build stages
-1. Build a responsive mockup of the page layout with no real calculations.
+1. Build a resizable mockup of the desktop window layout with no real
+   calculations.
 2. Add beam and load state, span/load controls, reactions, shear, and moment.
 3. Add deflection integration, section selection, and pass/fail checks.
 4. Add drag-to-position point loads and linked mouse crosshairs.
-5. Add section recommendations and complete responsive polish.
+5. Add section recommendations and complete desktop polish.
