@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import textwrap
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import filedialog, messagebox, ttk
@@ -428,6 +429,12 @@ class BeamDesigner:
             command=self._export_results,
         )
         self.export_button.pack(side="right", padx=(0, 12))
+        self.calculation_sheet_button = ttk.Button(
+            header,
+            text="Calculation Sheet PDF",
+            command=self._export_calculation_sheet,
+        )
+        self.calculation_sheet_button.pack(side="right", padx=(0, 8))
 
         plot_card = ttk.Frame(
             self.main_panel,
@@ -491,6 +498,96 @@ class BeamDesigner:
             self.status_var.set("Could not export results.")
             return
         self.status_var.set(f"Exported results to {file_path}")
+
+    def _export_calculation_sheet(self) -> None:
+        try:
+            beam = self._collect_beam()
+            forces = calculations.calculate_forces(beam)
+            material = self._material_code()
+            section = next(
+                section
+                for section in calculations.sections_for(material)
+                if section.name == self.section_var.get()
+            )
+            divisor = int(self.limit_var.get())
+            if divisor not in (240, 360):
+                raise ValueError("Deflection limit must be L/240 or L/360.")
+            deflection = calculations.calculate_deflection(forces, section)
+        except (ValueError, StopIteration) as exc:
+            messagebox.showerror(
+                "Export failed", str(exc) or "Choose a listed section."
+            )
+            self.status_var.set("Could not export calculation sheet.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="Save Calculation Sheet",
+            defaultextension=".pdf",
+            filetypes=(("PDF files", "*.pdf"), ("All files", "*.*")),
+        )
+        if not file_path:
+            return
+
+        max_moment = float(np.max(np.abs(forces.moment_kip_ft)))
+        bending = max_moment * 12 / section.sx_in3
+        max_deflection = float(np.max(np.abs(deflection)))
+        deflection_limit = beam.span_ft * 12 / divisor
+        point_load_text = "; ".join(
+            f"{load.magnitude_kips:g} k at {load.position_ft:g} ft"
+            for load in beam.point_loads
+        ) or "none"
+        uniform_load_text = "; ".join(
+            f"{load.magnitude_kip_per_ft:g} k/ft from "
+            f"{load.start_ft:g} to {load.end_ft:g} ft"
+            for load in beam.uniform_loads
+        ) or "none"
+        point_load_text = textwrap.fill(
+            point_load_text, width=110, subsequent_indent="  "
+        )
+        uniform_load_text = textwrap.fill(
+            uniform_load_text, width=110, subsequent_indent="  "
+        )
+        header_text = "\n".join(
+            (
+                "BEAM DESIGN CALCULATION SHEET",
+                f"Support: {self.support_display_var.get()}   "
+                f"Span: {beam.span_ft:g} ft   "
+                f"Material: {self.material_display_var.get()}   "
+                f"Section: {section.name}",
+                f"Deflection limit: L/{divisor} = {deflection_limit:.3f} in",
+                f"Point loads: {point_load_text}",
+                f"Uniform loads: {uniform_load_text}",
+                f"Bending: {bending:.2f} / {section.allowable_bending_ksi:.2f} ksi "
+                f"{'PASS' if bending <= section.allowable_bending_ksi else 'FAIL'}   "
+                f"Deflection: {max_deflection:.3f} / {deflection_limit:.3f} in "
+                f"{'PASS' if max_deflection <= deflection_limit else 'FAIL'}",
+            )
+        )
+
+        previous_top = self.figure.subplotpars.top
+        self.figure.subplots_adjust(top=0.73)
+        header = self.figure.text(
+            0.02,
+            0.985,
+            header_text,
+            ha="left",
+            va="top",
+            fontsize=8,
+            color=INK,
+        )
+        try:
+            self.figure.savefig(file_path, format="pdf", bbox_inches="tight")
+        except OSError as exc:
+            messagebox.showerror(
+                "Export failed", f"Could not save calculation sheet: {exc}"
+            )
+            self.status_var.set("Could not export calculation sheet.")
+            return
+        finally:
+            header.remove()
+            self.figure.subplots_adjust(top=previous_top)
+            self.canvas.draw_idle()
+        self.status_var.set(f"Saved calculation sheet to {file_path}")
 
     def _build_inputs(self) -> None:
         content = self.input_panel.content

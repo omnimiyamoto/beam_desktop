@@ -75,6 +75,8 @@ sizing a floor beam or deck joist.
   to a JSON design file; Open restores those inputs.
 - An Export Results button that saves a CSV table of x, shear, moment, and
   deflection values along the beam, with units in the column headers.
+- A Calculation Sheet button that saves the beam drawing, diagrams, and
+  bending and deflection checks as a PDF, with the inputs at the top.
 - A beam drawing with the supports, load arrows (point loads as single
   arrows, uniform loads as a row of small arrows), and the reactions.
 - Three diagrams stacked under the beam and lined up with it on the same

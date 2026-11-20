@@ -218,6 +218,37 @@ class BeamDesignerInputTests(unittest.TestCase):
             abs(float(midspan["Deflection (in)"])), 0.609, places=3
         )
 
+    def test_calculation_sheet_pdf_exports_without_changing_plot_layout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            file_path = os.path.join(directory, "calculation_sheet.pdf")
+            original_top = self.app.figure.subplotpars.top
+            savefig = self.app.figure.savefig
+
+            def savefig_with_header(*args, **kwargs):
+                header_text = "\n".join(
+                    text.get_text() for text in self.app.figure.texts
+                )
+                self.assertIn("Support: Simply supported", header_text)
+                self.assertIn("Uniform loads: 1 k/ft from 0 to 20 ft", header_text)
+                self.assertIn("Bending:", header_text)
+                self.assertIn("Deflection:", header_text)
+                return savefig(*args, **kwargs)
+
+            with (
+                patch("app.filedialog.asksaveasfilename", return_value=file_path),
+                patch("app.messagebox.showerror") as showerror,
+                patch.object(
+                    self.app.figure, "savefig", side_effect=savefig_with_header
+                ),
+            ):
+                self.app.calculation_sheet_button.invoke()
+            showerror.assert_not_called()
+
+            with open(file_path, "rb") as pdf_file:
+                self.assertEqual(pdf_file.read(5), b"%PDF-")
+            self.assertAlmostEqual(self.app.figure.subplotpars.top, original_top)
+            self.assertIn("Saved calculation sheet", self.app.status_var.get())
+
 
 if __name__ == "__main__":
     unittest.main()
