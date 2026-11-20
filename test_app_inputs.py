@@ -1,3 +1,4 @@
+import csv
 import os
 import tempfile
 import tkinter as tk
@@ -190,6 +191,32 @@ class BeamDesignerInputTests(unittest.TestCase):
         showerror.assert_called_once()
         self.assertEqual(self.app._collect_beam().span_ft, 20)
         self.assertEqual(self.app.section_var.get(), "W12x26")
+
+    def test_export_results_csv_matches_calculated_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            file_path = os.path.join(directory, "results.csv")
+            with (
+                patch("app.filedialog.asksaveasfilename", return_value=file_path),
+                patch("app.messagebox.showerror") as showerror,
+            ):
+                self.app.export_button.invoke()
+            showerror.assert_not_called()
+
+            with open(file_path, "r", newline="", encoding="utf-8-sig") as csv_file:
+                reader = csv.DictReader(csv_file)
+                rows = list(reader)
+                self.assertEqual(
+                    reader.fieldnames,
+                    ["x (ft)", "V (kips)", "M (kip-ft)", "Deflection (in)"],
+                )
+
+        self.assertEqual(len(rows), len(self.app._force_result.x_ft))
+        midspan = next(row for row in rows if float(row["x (ft)"]) == 10.0)
+        self.assertAlmostEqual(float(midspan["V (kips)"]), 0)
+        self.assertAlmostEqual(float(midspan["M (kip-ft)"]), 50)
+        self.assertAlmostEqual(
+            abs(float(midspan["Deflection (in)"])), 0.609, places=3
+        )
 
 
 if __name__ == "__main__":

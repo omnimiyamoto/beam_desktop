@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import tkinter as tk
@@ -420,6 +421,13 @@ class BeamDesigner:
             text="Structural analysis and section checks",
             style="App.TLabel",
         ).pack(side="right", pady=(7, 0))
+        self.export_button = ttk.Button(
+            header,
+            text="Export Results CSV",
+            style="Accent.TButton",
+            command=self._export_results,
+        )
+        self.export_button.pack(side="right", padx=(0, 12))
 
         plot_card = ttk.Frame(
             self.main_panel,
@@ -439,6 +447,50 @@ class BeamDesigner:
         ttk.Label(footer, textvariable=self.status_var, style="App.TLabel").pack(
             side="right"
         )
+
+    def _export_results(self) -> None:
+        try:
+            forces = calculations.calculate_forces(self._collect_beam())
+            section = next(
+                section
+                for section in calculations.sections_for(self._material_code())
+                if section.name == self.section_var.get()
+            )
+            deflection = calculations.calculate_deflection(forces, section)
+        except (ValueError, StopIteration) as exc:
+            messagebox.showerror(
+                "Export failed", str(exc) or "Choose a listed section."
+            )
+            self.status_var.set("Could not export results.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="Export Beam Results",
+            defaultextension=".csv",
+            filetypes=(("CSV files", "*.csv"), ("All files", "*.*")),
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "w", newline="", encoding="utf-8-sig") as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(("x (ft)", "V (kips)", "M (kip-ft)", "Deflection (in)"))
+                writer.writerows(
+                    zip(
+                        forces.x_ft,
+                        forces.shear_kips,
+                        forces.moment_kip_ft,
+                        deflection,
+                    )
+                )
+        except OSError as exc:
+            messagebox.showerror(
+                "Export failed", f"Could not export results: {exc}"
+            )
+            self.status_var.set("Could not export results.")
+            return
+        self.status_var.set(f"Exported results to {file_path}")
 
     def _build_inputs(self) -> None:
         content = self.input_panel.content
