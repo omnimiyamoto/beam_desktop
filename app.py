@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import math
 import tkinter as tk
-from tkinter import ttk
+from dataclasses import dataclass
+from tkinter import filedialog, messagebox, ttk
 
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -23,6 +25,14 @@ AMBER = "#d97706"
 RED = "#dc2626"
 PURPLE = "#7c3aed"
 ORANGE = "#ea580c"
+
+
+@dataclass(frozen=True)
+class SavedDesign:
+    beam: calculations.Beam
+    material: calculations.MaterialType
+    section: str
+    deflection_limit: int
 
 
 class ScrollableFrame(ttk.Frame):
@@ -110,6 +120,7 @@ class BeamDesigner:
         self.root.geometry("1480x960")
         self.root.minsize(1120, 760)
         self.root.configure(background=BACKGROUND)
+        self._build_menu()
         self._configure_styles()
 
         self.support_display_var = tk.StringVar(value="Simply supported")
@@ -138,6 +149,196 @@ class BeamDesigner:
         self._build_inputs()
         self._build_plot()
         self._ready = True
+        self._on_inputs_changed()
+
+    def _build_menu(self) -> None:
+        menu = tk.Menu(self.root)
+        self.file_menu = tk.Menu(menu, tearoff=False)
+        self.file_menu.add_command(label="Save", command=self._save_design)
+        self.file_menu.add_command(label="Open", command=self._open_design)
+        menu.add_cascade(label="File", menu=self.file_menu)
+        self.root.configure(menu=menu)
+
+    def _save_design(self) -> None:
+        try:
+            beam = self._collect_beam()
+            material = self._material_code()
+            section = next(
+                section
+                for section in calculations.sections_for(material)
+                if section.name == self.section_var.get()
+            )
+            divisor = int(self.limit_var.get())
+            if divisor not in (240, 360):
+                raise ValueError("Deflection limit must be L/240 or L/360.")
+        except (ValueError, StopIteration) as exc:
+            messagebox.showerror("Save failed", str(exc) or "Choose a listed section.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="Save Beam Design",
+            defaultextension=".json",
+            filetypes=(("Beam design files", "*.json"), ("All files", "*.*")),
+        )
+        if not file_path:
+            return
+
+        design = {
+            "format_version": 1,
+            "support": beam.support,
+            "span_ft": beam.span_ft,
+            "material": material,
+            "section": section.name,
+            "deflection_limit": divisor,
+            "point_loads": [
+                {
+                    "magnitude_kips": load.magnitude_kips,
+                    "position_ft": load.position_ft,
+                }
+                for load in beam.point_loads
+            ],
+            "uniform_loads": [
+                {
+                    "magnitude_kip_per_ft": load.magnitude_kip_per_ft,
+                    "start_ft": load.start_ft,
+                    "end_ft": load.end_ft,
+                }
+                for load in beam.uniform_loads
+            ],
+        }
+        try:
+            with open(file_path, "w", encoding="utf-8") as design_file:
+                json.dump(design, design_file, indent=2)
+                design_file.write("\n")
+        except OSError as exc:
+            messagebox.showerror("Save failed", f"Could not save the design: {exc}")
+            self.status_var.set("Could not save design.")
+            return
+        self.status_var.set(f"Saved design to {file_path}")
+
+    def _open_design(self) -> None:
+        file_path = filedialog.askopenfilename(
+            title="Open Beam Design",
+            filetypes=(("Beam design files", "*.json"), ("All files", "*.*")),
+        )
+        if not file_path:
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8") as design_file:
+                design = self._parse_design(json.load(design_file))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            messagebox.showerror("Open failed", f"Could not open the design: {exc}")
+            self.status_var.set("Could not open design.")
+            return
+
+        self._apply_design(design)
+        self.status_var.set(f"Opened design from {file_path}")
+
+    @staticmethod
+    def _parse_design(payload: object) -> SavedDesign:
+        if (
+            not isinstance(payload, dict)
+            or type(payload.get("format_version")) is not int
+            or payload.get("format_version") != 1
+        ):
+            raise ValueError("Unsupported or invalid beam design file.")
+        support = payload.get("support")
+        if not isinstance(support, str) or support not in ("simple", "cantilever"):
+            raise ValueError("Design support must be simple or cantilever.")
+        support_code: calculations.SupportType = (
+            "simple" if support == "simple" else "cantilever"
+        )
+
+        def number(value: object, label: str) -> float:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{label} must be a number.")
+            result = float(value)
+            if not math.isfinite(result):
+                raise ValueError(f"{label} must be finite.")
+            return result
+
+        span = number(payload.get("span_ft"), "Span")
+        material = payload.get("material")
+        if not isinstance(material, str) or material not in calculations.SECTIONS:
+            raise ValueError("Design material is not supported.")
+        material_code: calculations.MaterialType = (
+            "steel" if material == "steel" else "lumber"
+        )
+        section_name = payload.get("section")
+        if not isinstance(section_name, str) or section_name not in {
+            section.name for section in calculations.sections_for(material_code)
+        }:
+            raise ValueError("Design section is not listed for its material.")
+
+        divisor = payload.get("deflection_limit")
+        if (
+            isinstance(divisor, bool)
+            or not isinstance(divisor, int)
+            or divisor not in (240, 360)
+        ):
+            raise ValueError("Deflection limit must be 240 or 360.")
+
+        point_data = payload.get("point_loads")
+        uniform_data = payload.get("uniform_loads")
+        if not isinstance(point_data, list) or not isinstance(uniform_data, list):
+            raise ValueError("Design loads must be lists.")
+
+        points = []
+        for item in point_data:
+            if not isinstance(item, dict):
+                raise ValueError("Each point load must be an object.")
+            points.append(
+                calculations.PointLoad(
+                    number(item.get("magnitude_kips"), "Point load magnitude"),
+                    number(item.get("position_ft"), "Point load position"),
+                )
+            )
+        uniforms = []
+        for item in uniform_data:
+            if not isinstance(item, dict):
+                raise ValueError("Each uniform load must be an object.")
+            uniforms.append(
+                calculations.UniformLoad(
+                    number(
+                        item.get("magnitude_kip_per_ft"),
+                        "Uniform load magnitude",
+                    ),
+                    number(item.get("start_ft"), "Uniform load start"),
+                    number(item.get("end_ft"), "Uniform load end"),
+                )
+            )
+
+        if any(load.position_ft > 40 for load in points) or any(
+            load.start_ft > 40 or load.end_ft > 40 for load in uniforms
+        ):
+            raise ValueError("Load positions must be between 0 and 40 ft.")
+        beam = calculations.Beam(span, support_code, tuple(points), tuple(uniforms))
+        calculations.calculate_forces(beam)
+        return SavedDesign(beam, material_code, section_name, divisor)
+
+    def _apply_design(self, design: SavedDesign) -> None:
+        beam = design.beam
+        was_ready = self._ready
+        self._ready = False
+        try:
+            self.support_display_var.set(
+                "Simply supported" if beam.support == "simple" else "Cantilever"
+            )
+            self.span_var.set(f"{beam.span_ft:g}")
+            self.span_scale_var.set(beam.span_ft)
+            self.material_display_var.set(
+                "Steel W-shapes"
+                if design.material == "steel"
+                else "Douglas Fir-Larch No. 2"
+            )
+            self._refresh_section_options()
+            self.section_var.set(design.section)
+            self.limit_var.set(str(design.deflection_limit))
+            self.point_loads = list(beam.point_loads)
+            self.uniform_loads = list(beam.uniform_loads)
+            self._rebuild_load_rows()
+        finally:
+            self._ready = was_ready
         self._on_inputs_changed()
 
     def _configure_styles(self) -> None:

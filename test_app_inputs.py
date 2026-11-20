@@ -1,8 +1,12 @@
+import os
+import tempfile
 import tkinter as tk
 import unittest
 from tkinter import ttk
 from types import SimpleNamespace
+from unittest.mock import patch
 
+import beam_calculations as calculations
 from app import BeamDesigner
 
 
@@ -115,6 +119,77 @@ class BeamDesignerInputTests(unittest.TestCase):
         self.app.material_display_var.set("Steel W-shapes")
         self.app._on_material_changed()
         self.assertIn("W8x10", self.app.section_box.cget("values"))
+
+    def test_save_and_open_round_trip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            file_path = os.path.join(directory, "design.json")
+            self.app.support_display_var.set("Cantilever")
+            self.app.span_var.set("28")
+            self.app.material_display_var.set("Douglas Fir-Larch No. 2")
+            self.app._on_material_changed()
+            self.app.section_var.set("2x10")
+            self.app.limit_var.set("240")
+            self.app.point_loads = [calculations.PointLoad(4.5, 7.25)]
+            self.app.uniform_loads = [calculations.UniformLoad(0.3, 2, 18)]
+            self.app._rebuild_load_rows()
+            self.app._on_inputs_changed()
+
+            with (
+                patch("app.filedialog.asksaveasfilename", return_value=file_path),
+                patch("app.messagebox.showerror") as showerror,
+            ):
+                self.app.file_menu.invoke(0)
+            showerror.assert_not_called()
+            self.assertTrue(os.path.isfile(file_path))
+
+            self.app.support_display_var.set("Simply supported")
+            self.app.span_var.set("20")
+            self.app.material_display_var.set("Steel W-shapes")
+            self.app._on_material_changed()
+            self.app.section_var.set("W12x26")
+            self.app.limit_var.set("360")
+            self.app.point_loads = []
+            self.app.uniform_loads = []
+            self.app._rebuild_load_rows()
+            self.app._on_inputs_changed()
+
+            with (
+                patch("app.filedialog.askopenfilename", return_value=file_path),
+                patch("app.messagebox.showerror") as showerror,
+            ):
+                self.app.file_menu.invoke(1)
+            showerror.assert_not_called()
+
+        self.assertEqual(self.app.support_display_var.get(), "Cantilever")
+        self.assertEqual(self.app.span_var.get(), "28")
+        self.assertEqual(self.app.material_display_var.get(), "Douglas Fir-Larch No. 2")
+        self.assertEqual(self.app.section_var.get(), "2x10")
+        self.assertEqual(self.app.limit_var.get(), "240")
+        self.assertEqual(
+            self.app._collect_beam(),
+            calculations.Beam(
+                28,
+                "cantilever",
+                (calculations.PointLoad(4.5, 7.25),),
+                (calculations.UniformLoad(0.3, 2, 18),),
+            ),
+        )
+
+    def test_invalid_open_preserves_current_design(self):
+        with tempfile.TemporaryDirectory() as directory:
+            file_path = os.path.join(directory, "invalid.json")
+            with open(file_path, "w", encoding="utf-8") as design_file:
+                design_file.write('{"format_version": 1}')
+
+            with (
+                patch("app.filedialog.askopenfilename", return_value=file_path),
+                patch("app.messagebox.showerror") as showerror,
+            ):
+                self.app._open_design()
+
+        showerror.assert_called_once()
+        self.assertEqual(self.app._collect_beam().span_ft, 20)
+        self.assertEqual(self.app.section_var.get(), "W12x26")
 
 
 if __name__ == "__main__":

@@ -70,6 +70,9 @@ sizing a floor beam or deck joist.
 - Units: kips, ft, and kip-ft on screen; inches for deflection.
 
 ## Outputs
+- A File menu with Save and Open commands. Save writes the support type,
+  span, material and section, deflection limit, and point and uniform loads
+  to a JSON design file; Open restores those inputs.
 - A beam drawing with the supports, load arrows (point loads as single
   arrows, uniform loads as a row of small arrows), and the reactions.
 - Three diagrams stacked under the beam and lined up with it on the same
@@ -116,7 +119,7 @@ sizing a floor beam or deck joist.
 
 ## Out of scope
 - Self-weight, shear stress, lateral-torsional buckling, load combinations,
-  continuous beams, saving designs, and 3D rendering.
+  continuous beams, and 3D rendering.
 
 ## Build stages
 1. Build a resizable mockup of the desktop window layout with no real
