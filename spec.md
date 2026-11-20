@@ -110,7 +110,9 @@ sizing a floor beam or deck joist.
    max deflection 0.147 in; both pass.
 5. Simply supported, 30 ft, W18x35, uniform 2 kips/ft from 0 to 15 ft
    only: reactions 22.5 k (left) and 7.5 k (right); max moment
-   126.6 kip-ft at 11.25 ft.
+   126.6 kip-ft at 11.25 ft; fb = 26.37 ksi; max deflection 1.242 in
+   at 13.79 ft; L/360 = 1.000 in, so deflection fails. W21x44 is the
+   lightest listed steel section that passes both checks.
 
 ## Out of scope
 - Self-weight, shear stress, lateral-torsional buckling, load combinations,
