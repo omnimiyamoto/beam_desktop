@@ -1,0 +1,6 @@
+- After each request, add an entry to prompts.md: what I asked, what you changed, and whether it worked.
+- 00_planning: notes and sketches.
+- 01_data: data files.
+- 02_validation: hand calculations and test cases.
+- 03_output: screenshots and exported results.
+- Save top-level app files (index.html, spec.md, prompts.md, and AGENTS.md) at the project root.

@@ -1,0 +1,265 @@
+# AI Statement: I used AI to help me create the code and explain how to do everything.
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beam Designer</title>
+  <style>
+    :root{--blue:#2563eb;--ink:#172033;--muted:#64748b;--line:#dbe3ef;--bg:#f4f7fb}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
+    header{height:64px;display:flex;align-items:center;padding:0 28px;background:white;border-bottom:1px solid var(--line);font-size:20px;font-weight:750}
+    .layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;max-width:1500px;margin:auto;padding:18px}
+    .panel,.card{background:white;border:1px solid #e6ebf3;border-radius:12px;box-shadow:0 3px 12px rgba(31,45,61,.05)}
+    .panel{padding:16px}.main{display:grid;gap:16px;min-width:0}
+    h2{margin:0 0 12px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#475569} h3{margin:0 0 10px}
+    .field{margin-bottom:12px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+    input,select,button{font:inherit} input[type=number],select{width:100%;height:38px;border:1px solid #ccd6e5;border-radius:7px;padding:7px 9px}
+    .span-control{display:grid;grid-template-columns:1fr 78px;gap:10px}.load-section{border-top:1px solid #edf1f6;margin-top:14px;padding-top:12px}
+    .load-list{display:grid;gap:8px}.load-item{border:1px solid #dde5f0;border-radius:8px;padding:9px;background:#fbfcfe}
+    .load-grid{display:grid;grid-template-columns:1fr 1fr 28px;gap:6px}.uniform-grid{grid-template-columns:1fr 1fr 1fr 28px}
+    .load-grid label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}.add{width:100%;height:38px;margin-top:8px;border:1px dashed #93a4bb;border-radius:8px;background:#f8fafc;color:#475569}
+    #beamDrawing{width:100%;height:250px;display:block}.drawing-card{padding:10px 14px 4px}.diagram-card{padding:12px 14px 8px}.diagram{width:100%;height:132px;display:block}
+    .checks{display:grid;grid-template-columns:1fr 1fr;gap:16px}.check-card{padding:15px}.check-head{display:flex;justify-content:space-between}.check-status{border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;background:#dcfce7;color:#166534}
+    .bar{height:9px;border-radius:999px;background:#e8edf4}.bar-fill{height:100%;width:50%;border-radius:999px;background:#16a34a}
+    .recommendation{display:flex;justify-content:space-between;align-items:center;padding:12px 14px}.recommendation button{border:0;border-radius:7px;background:var(--blue);color:white;height:38px;padding:0 14px}
+    .crosshair{stroke:#94a3b8;stroke-width:1;stroke-dasharray:4 3}.tooltip{position:absolute;display:none;pointer-events:none;background:#172033;color:white;border-radius:6px;padding:6px 8px;font-size:11px;z-index:5}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}}@media(max-width:560px){header{padding:0 16px}.layout{padding:10px}.checks{grid-template-columns:1fr}.recommendation{flex-direction:column;align-items:flex-start;gap:10px}}
+  </style>
+</head>
+<body>
+  <header>Beam Designer</header>
+  <main class="layout">
+    <aside class="panel">
+      <h2>Beam Setup</h2>
+      <div class="field"><label>Support type</label><select id="support"><option value="simple">Simply supported</option><option value="cantilever">Cantilever</option></select></div>
+      <div class="field"><label>Span (ft)</label><div class="span-control"><input id="spanRange" type="range" min="4" max="40" step=".25" value="20"><input id="spanNumber" type="number" min="4" max="40" step=".25" value="20"></div></div>
+      <div class="load-section"><h3>Point loads</h3><div id="pointLoads" class="load-list"></div><button id="addPoint" class="add">+ Add point load</button></div>
+      <div class="load-section"><h3>Uniform loads</h3><div id="uniformLoads" class="load-list"></div><button id="addUniform" class="add">+ Add uniform load</button></div>
+      <div class="load-section"><h2>Section</h2><div class="field"><label>Material</label><select id="material"><option value="steel">Steel W-shape</option><option value="lumber">Douglas Fir-Larch No. 2</option></select></div><div class="field"><label>Section</label><select id="section"></select></div><div class="field"><label>Deflection limit</label><select id="limit"><option value="360">L/360</option><option value="240">L/240</option></select></div></div>
+    </aside>
+    <section class="main">
+      <div class="card drawing-card"><svg id="beamDrawing" viewBox="0 0 900 250"><line x1="90" x2="810" y1="128" y2="128" stroke="#475569" stroke-width="8"/><polygon points="66,136 114,136 90,166" fill="#94a3b8"/><polygon points="786,136 834,136 810,166" fill="#94a3b8"/><text x="450" y="150" text-anchor="middle" fill="#2563eb">Example beam</text></svg></div>
+      <div class="card diagram-card"><svg id="shearDiagram" class="diagram"></svg><svg id="momentDiagram" class="diagram"></svg><svg id="deflectionDiagram" class="diagram"></svg><div id="tooltip" class="tooltip"></div></div>
+      <div class="checks"><article class="card check-card" title="bending stress = |Mmax| * 12 / Sx"><div class="check-head"><h3>Bending</h3><span id="bendingStatus" class="check-status">PASS</span></div><p>Actual 17.96 ksi &nbsp; Allowable 30 ksi</p><div class="bar"><div id="bendingBar" class="bar-fill"></div></div></article><article class="card check-card" title="Deflection is found by integrating M/EI twice with support boundary conditions."><div class="check-head"><h3>Deflection</h3><span id="deflectionStatus" class="check-status">PASS</span></div><p>Actual 0.609 in &nbsp; Limit 0.667 in</p><div class="bar"><div id="deflectionBar" class="bar-fill"></div></div></article></div>
+      <div class="card recommendation"><span id="recommendation"><strong>Lightest passing section:</strong> W12x26</span><button id="useSection">Use section</button></div>
+    </section>
+  </main>
+  <script>
+    const steel=[
+      {name:"W8x10",Ix:30.8,Sx:7.81,weight:10},{name:"W10x12",Ix:53.8,Sx:10.9,weight:12},
+      {name:"W12x26",Ix:204,Sx:33.4,weight:26},{name:"W14x22",Ix:199,Sx:29,weight:22},
+      {name:"W16x26",Ix:301,Sx:38.4,weight:26},{name:"W18x35",Ix:510,Sx:57.6,weight:35},
+      {name:"W21x44",Ix:843,Sx:81.6,weight:44},{name:"W24x55",Ix:1350,Sx:114,weight:55}
+    ];
+    const lumber=[
+      {name:"2x8",Ix:47.63,Sx:13.14},{name:"2x10",Ix:98.93,Sx:21.39},{name:"2x12",Ix:177.98,Sx:31.64}
+    ];
+    const state={support:"simple",span:20,limit:360,material:"steel",section:"W12x26",points:[],uniforms:[{mag:1,start:0,end:20}]};
+    const NS="http://www.w3.org/2000/svg";
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    const fmt=(v,d=2)=>Math.abs(v)<.0005?"0":v.toFixed(d);
+    function el(tag,attrs={},text=""){const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);if(text)e.textContent=text;return e}
+    function sectionList(){return state.material==="steel"?steel:lumber}
+    function sectionData(){return sectionList().find(s=>s.name===state.section)||sectionList()[0]}
+    function setSectionOptions(){
+      const list=sectionList();if(!list.some(s=>s.name===state.section))state.section=list[0].name;
+      const select=document.getElementById("section");select.innerHTML="";
+      list.forEach(s=>select.append(new Option(s.name,s.name)));select.value=state.section;
+    }
+    function loadRows(){
+      const points=document.getElementById("pointLoads");points.innerHTML="";
+      state.points.forEach((p,i)=>{
+        const row=document.createElement("div");row.className="load-item";
+        row.innerHTML=`<div class="load-grid"><div><label>Magnitude (kips)</label><input type="number" step=".1" value="${p.mag}" data-point="${i}" data-key="mag"></div><div><label>Position (ft)</label><input type="number" step=".25" value="${p.pos}" data-point="${i}" data-key="pos"></div><button class="remove-point" data-remove-point="${i}" title="Remove">×</button></div>`;
+        points.append(row);
+      });
+      const uniforms=document.getElementById("uniformLoads");uniforms.innerHTML="";
+      state.uniforms.forEach((u,i)=>{
+        const row=document.createElement("div");row.className="load-item";
+        row.innerHTML=`<div class="load-grid uniform-grid"><div><label>Magnitude (kip/ft)</label><input type="number" step=".01" value="${u.mag}" data-uniform="${i}" data-key="mag"></div><div><label>Start (ft)</label><input type="number" step=".25" value="${u.start}" data-uniform="${i}" data-key="start"></div><div><label>End (ft)</label><input type="number" step=".25" value="${u.end}" data-uniform="${i}" data-key="end"></div><button class="remove-uniform" data-remove-uniform="${i}" title="Remove">×</button></div>`;
+        uniforms.append(row);
+      });
+    }
+    function calculate(){
+      const L=state.span;
+      const points=state.points.map(p=>({mag:Math.max(0,+p.mag||0),pos:clamp(+p.pos||0,0,L)}));
+      const uniforms=state.uniforms.map(u=>{let a=clamp(+u.start||0,0,L),b=clamp(+u.end||0,0,L);if(a>b)[a,b]=[b,a];return{mag:Math.max(0,+u.mag||0),start:a,end:b}});
+      const reactions={left:0,right:0,moment:0};
+      if(state.support==="simple"){
+        let total=0,totalMoment=0;
+        points.forEach(p=>{total+=p.mag;totalMoment+=p.mag*p.pos});
+        uniforms.forEach(u=>{const w=u.mag*(u.end-u.start),c=(u.start+u.end)/2;total+=w;totalMoment+=w*c});
+        reactions.left=totalMoment/L;reactions.right=total-reactions.left;
+      }else{
+        points.forEach(p=>{reactions.left+=p.mag;reactions.moment+=p.mag*(L-p.pos)});
+        uniforms.forEach(u=>{const w=u.mag*(u.end-u.start),c=(u.start+u.end)/2;reactions.left+=w;reactions.moment+=w*(L-c)});
+      }
+      const xs=[0,L];for(let x=0;x<=L+1e-9;x+=.25)xs.push(clamp(x,0,L));points.forEach(p=>xs.push(p.pos));uniforms.forEach(u=>{xs.push(u.start,u.end)});
+      const xValues=[...new Set(xs.map(x=>Math.round(x*100000)/100000))].sort((a,b)=>a-b);
+      const vals=xValues.map(x=>{
+        let V=0,M=0;
+        if(state.support==="simple"){
+          V=reactions.left;M=reactions.left*x;
+          points.forEach(p=>{if(x>=p.pos){V-=p.mag;M-=p.mag*(x-p.pos)}});
+          uniforms.forEach(u=>{const a=Math.max(u.start,0),b=Math.min(u.end,x);if(b>a){const length=b-a;V-=u.mag*length;M-=u.mag*(x*length-(b*b-a*a)/2)}});
+        }else{
+          points.forEach(p=>{if(p.pos>=x){V+=p.mag;M+=p.mag*(p.pos-x)}});
+          uniforms.forEach(u=>{const a=Math.max(u.start,x),b=u.end;if(b>a){V+=u.mag*(b-a);M+=u.mag*((b*b-a*a)/2-x*(b-a))}});
+        }
+        return{x,V,M};
+      });
+      return{vals,reactions,points,uniforms};
+    }
+    function renderBeam(){
+      const data=calculate(),svg=document.getElementById("beamDrawing"),left=90,right=810,y=128,scale=720/state.span;
+      svg.setAttribute("viewBox","0 0 900 250");svg.innerHTML="";
+      svg.append(el("line",{x1:left,x2:right,y1:y,y2:y,stroke:"#475569","stroke-width":8,"stroke-linecap":"round"}));
+      if(state.support==="simple"){svg.append(el("polygon",{points:`${left-24},${y+8} ${left+24},${y+8} ${left},${y+38}`,fill:"#94a3b8"}));svg.append(el("polygon",{points:`${right-24},${y+8} ${right+24},${y+8} ${right},${y+38}`,fill:"#94a3b8"}))}
+      else svg.append(el("rect",{x:left-18,y:y-42,width:18,height:84,fill:"#94a3b8"}));
+      svg.append(el("text",{x:left,y:64,"text-anchor":"middle","font-size":13,fill:"#64748b"},"0 ft"));svg.append(el("text",{x:right,y:64,"text-anchor":"middle","font-size":13,fill:"#64748b"},`${state.span} ft`));
+      data.points.forEach((p,i)=>{const x=left+p.pos*scale;svg.append(el("line",{x1:x,x2:x,y1:y-90,y2:y-12,stroke:"#2563eb","stroke-width":3}));svg.append(el("polygon",{points:`${x-7},${y-18} ${x+7},${y-18} ${x},${y-8}`,fill:"#2563eb"}));svg.append(el("text",{x,y:y-96,"text-anchor":"middle","font-size":13,fill:"#1d4ed8",fontWeight:700},`${fmt(p.mag)} k @ ${fmt(p.pos)} ft`));const handle=el("circle",{cx:x,cy:y-12,r:8,fill:"#2563eb",stroke:"#fff","stroke-width":2,cursor:"ew-resize"});handle.dataset.point=i;svg.append(handle)});
+      data.uniforms.forEach(u=>{const a=left+u.start*scale,b=left+u.end*scale;for(let x=a+12;x<b;x+=18)svg.append(el("line",{x1:x,x2:x,y1:y-48,y2:y-12,stroke:"#2563eb","stroke-width":2}));svg.append(el("text",{x:(a+b)/2,y:y-64,"text-anchor":"middle","font-size":12,fill:"#1d4ed8"},`${fmt(u.mag)} kip/ft`))});
+      if(state.support==="simple"){svg.append(el("text",{x:left,y:y+72,"text-anchor":"middle","font-size":13,fill:"#16a34a"},`R = ${fmt(data.reactions.left)} k`));svg.append(el("text",{x:right,y:y+72,"text-anchor":"middle","font-size":13,fill:"#16a34a"},`R = ${fmt(data.reactions.right)} k`))}
+      else{svg.append(el("text",{x:left+5,y:y+72,"text-anchor":"start","font-size":13,fill:"#16a34a"},`R = ${fmt(data.reactions.left)} k`));svg.append(el("text",{x:left+5,y:y+94,"text-anchor":"start","font-size":13,fill:"#16a34a"},`Mfix = ${fmt(data.reactions.moment)} kip-ft`))}
+    }
+    document.getElementById("beamDrawing").addEventListener("pointerdown",e=>{
+      if(e.target.dataset.point===undefined)return;
+      const i=+e.target.dataset.point,svg=document.getElementById("beamDrawing"),rect=svg.getBoundingClientRect();
+      const move=ev=>{
+        const x=clamp((ev.clientX-rect.left)/rect.width*900,90,810);
+        state.points[i].pos=Math.round(((x-90)/720*state.span)*4)/4;
+        state.points[i].pos=clamp(state.points[i].pos,0,state.span);loadRows();update();
+      };
+      const up=()=>{window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up)};
+      window.addEventListener("pointermove",move);window.addEventListener("pointerup",up);
+    });
+    function update(){renderBeam()}
+    document.getElementById("support").onchange=e=>{state.support=e.target.value;update()};
+    document.getElementById("spanRange").oninput=e=>{state.span=+e.target.value;document.getElementById("spanNumber").value=state.span;update()};
+    document.getElementById("spanNumber").onchange=e=>{state.span=clamp(+e.target.value,4,40);e.target.value=state.span;document.getElementById("spanRange").value=state.span;update()};
+    document.getElementById("material").onchange=e=>{state.material=e.target.value;setSectionOptions();update()};
+    document.getElementById("section").onchange=e=>{state.section=e.target.value;update()};
+    document.getElementById("limit").onchange=e=>{state.limit=+e.target.value;update()};
+    document.getElementById("addPoint").onclick=()=>{state.points.push({mag:1,pos:state.span/2});loadRows();update()};
+    document.getElementById("addUniform").onclick=()=>{state.uniforms.push({mag:.1,start:0,end:state.span});loadRows();update()};
+    document.addEventListener("input",e=>{if(e.target.dataset.point){state.points[+e.target.dataset.point][e.target.dataset.key]=+e.target.value||0;update()}if(e.target.dataset.uniform){state.uniforms[+e.target.dataset.uniform][e.target.dataset.key]=+e.target.value||0;update()}});
+    document.addEventListener("click",e=>{if(e.target.dataset.removePoint!==undefined){state.points.splice(+e.target.dataset.removePoint,1);loadRows();update()}if(e.target.dataset.removeUniform!==undefined){state.uniforms.splice(+e.target.dataset.removeUniform,1);loadRows();update()}});
+    setSectionOptions();loadRows();update();
+    function integrateDeflection(vals){
+  const s=sectionData(),E=state.material==="steel"?29000:1600,EI=E*s.Ix;
+  let slope=0,disp=0;
+  const def=[{x:0,y:0}];
+  vals.forEach((v,i)=>{
+    if(i===0)return;
+    const previous=vals[i-1],dx=(v.x-previous.x)*12;
+    const c0=previous.M*12/EI,c1=v.M*12/EI;
+    const slopeBefore=slope;
+    slope+=(c0+c1)/2*dx;
+    disp+=(slopeBefore+slope)/2*dx;
+    def.push({x:v.x,y:disp});
+  });
+  if(state.support==="simple"){const end=def[def.length-1].y;def.forEach(d=>d.y-=end*d.x/state.span)}
+  return def;
+    }
+    function renderDiagram(id,label,vals,key,color,unit){
+  const svg=document.getElementById(id);svg.setAttribute("viewBox","0 0 900 132");svg.innerHTML="";
+  const left=90,right=810,top=18,bottom=105,zero=(top+bottom)/2;
+  svg.append(el("line",{x1:left,x2:right,y1:zero,y2:zero,stroke:"#cbd5e1","stroke-width":1}));
+  svg.append(el("text",{x:12,y:24,"font-size":12,fontWeight:700,fill:"#475569"},label));
+  const max=Math.max(...vals.map(v=>Math.abs(v[key])),.000001),scale=(bottom-top)/2/max;
+  const points=vals.map(v=>`${left+v.x/state.span*720},${zero-v[key]*scale}`).join(" ");
+  svg.append(el("polygon",{points:`${left},${zero} ${points} ${right},${zero}`,fill:color,opacity:.16}));
+  svg.append(el("polyline",{points,fill:"none",stroke:color,"stroke-width":2}));
+  let extreme=vals[0];vals.forEach(v=>{if(Math.abs(v[key])>Math.abs(extreme[key]))extreme=v});
+  const ex=left+extreme.x/state.span*720,ey=zero-extreme[key]*scale;
+  svg.append(el("circle",{cx:ex,cy:ey,r:3.5,fill:color}));
+  svg.append(el("text",{x:ex,y:extreme[key]>=0?ey-8:ey+16,"text-anchor":"middle","font-size":11,fill:color,fontWeight:700},`${fmt(extreme[key])} ${unit}`));
+  svg.append(el("line",{class:"crosshair",x1:90,x2:90,y1:top,y2:bottom,display:"none"}));
+    }
+    function renderDeflection(vals){
+  const svg=document.getElementById("deflectionDiagram");svg.setAttribute("viewBox","0 0 900 132");svg.innerHTML="";
+  const left=90,right=810,top=18,bottom=105,zero=88;
+  svg.append(el("line",{x1:left,x2:right,y1:zero,y2:zero,stroke:"#cbd5e1","stroke-width":1}));
+  svg.append(el("text",{x:12,y:24,"font-size":12,fontWeight:700,fill:"#475569"},"DEFLECTION"));
+  const max=Math.max(...vals.map(v=>Math.abs(v.y)),.000001),scale=78/max;
+  const points=vals.map(v=>`${left+v.x/state.span*720},${zero-v.y*scale}`).join(" ");
+  svg.append(el("polyline",{points,fill:"none",stroke:"#ea580c","stroke-width":2}));
+  let extreme=vals[0];vals.forEach(v=>{if(Math.abs(v.y)>Math.abs(extreme.y))extreme=v});
+  const ex=left+extreme.x/state.span*720,ey=zero-extreme.y*scale;
+  svg.append(el("circle",{cx:ex,cy:ey,r:3.5,fill:"#ea580c"}));
+  svg.append(el("text",{x:ex,y:ey-8,"text-anchor":"middle","font-size":11,fill:"#ea580c",fontWeight:700},`${fmt(extreme.y,3)} in`));
+  svg.append(el("line",{class:"crosshair",x1:90,x2:90,y1:top,y2:bottom,display:"none"}));
+    }
+    function setCheck(kind,ratio){
+  const status=document.querySelector(kind==="bending"?"#bendingStatus":"#deflectionStatus");
+  const bar=document.querySelector(kind==="bending"?"#bendingBar":"#deflectionBar");
+  status.textContent=ratio<=1?"PASS":"FAIL";status.style.background=ratio<=1?"#dcfce7":"#fee2e2";status.style.color=ratio<=1?"#166534":"#991b1b";
+  bar.style.width=`${clamp(ratio*100,0,100)}%`;bar.style.background=ratio<.7?"#16a34a":ratio<=1?"#d97706":"#dc2626";
+    }
+    function setupHover(){
+  ["shearDiagram","momentDiagram","deflectionDiagram"].forEach(id=>{
+    const svg=document.getElementById(id);
+    svg.onmousemove=e=>{
+      const rect=svg.getBoundingClientRect(),fraction=clamp((e.clientX-rect.left)/rect.width,90/900,810/900);
+      const x=clamp((fraction-90/900)/(720/900)*state.span,0,state.span);
+      const data=calculate(),def=integrateDeflection(data.vals);
+      const nearest=data.vals.reduce((a,b)=>Math.abs(b.x-x)<Math.abs(a.x-x)?b:a);
+      const nearestDef=def.reduce((a,b)=>Math.abs(b.x-x)<Math.abs(a.x-x)?b:a);
+      ["shearDiagram","momentDiagram","deflectionDiagram"].forEach(di=>{
+        const line=document.querySelector(`#${di} .crosshair`);
+        if(line){const px=90+nearest.x/state.span*720;line.setAttribute("display","block");line.setAttribute("x1",px);line.setAttribute("x2",px)}
+      });
+      const tip=document.getElementById("tooltip");
+      tip.style.display="block";tip.style.left=`${e.clientX-rect.left+12}px`;tip.style.top=`${e.clientY-rect.top+12}px`;
+      tip.innerHTML=`x = ${fmt(nearest.x)} ft<br>V = ${fmt(nearest.V)} k<br>M = ${fmt(nearest.M)} kip-ft<br>y = ${fmt(nearestDef.y,3)} in`;
+    };
+    svg.onmouseleave=()=>{
+      ["shearDiagram","momentDiagram","deflectionDiagram"].forEach(di=>{const line=document.querySelector(`#${di} .crosshair`);if(line)line.setAttribute("display","none")});
+      document.getElementById("tooltip").style.display="none";
+    };
+  });
+    }
+    function deflectionForSection(s){
+  const data=calculate(),E=state.material==="steel"?29000:1600,EI=E*s.Ix;
+  let slope=0,disp=0;
+  const def=[{x:0,y:0}];
+  data.vals.forEach((v,i)=>{
+    if(i===0)return;
+    const previous=data.vals[i-1],dx=(v.x-previous.x)*12;
+    const c0=previous.M*12/EI,c1=v.M*12/EI,slopeBefore=slope;
+    slope+=(c0+c1)/2*dx;disp+=(slopeBefore+slope)/2*dx;def.push({x:v.x,y:disp});
+  });
+  if(state.support==="simple"){const end=def[def.length-1].y;def.forEach(d=>d.y-=end*d.x/state.span)}
+  let max=0;def.forEach(d=>{if(Math.abs(d.y)>Math.abs(max))max=d.y});
+  return Math.abs(max);
+    }
+    function recommend(){
+  const list=sectionList(),limit=state.span*12/state.limit;
+  const candidates=list.map(s=>{
+    let maxM=0;calculate().vals.forEach(v=>{if(Math.abs(v.M)>Math.abs(maxM))maxM=v.M});
+    const bending=Math.abs(maxM)*12/s.Sx;
+    return{section:s,bending,deflection:deflectionForSection(s)};
+  }).filter(c=>c.bending<= (state.material==="steel"?30:.900)&&c.deflection<=limit);
+  if(state.material==="steel")candidates.sort((a,b)=>a.section.weight-b.section.weight||(b.section.Ix-a.section.Ix));
+  const result=candidates[0];
+  document.getElementById("recommendation").innerHTML=result?`<strong>Lightest passing section:</strong> ${result.section.name}`:"<strong>No listed section passes both checks.</strong>";
+  document.getElementById("useSection").disabled=!result;
+  document.getElementById("useSection").onclick=()=>{if(result){state.section=result.section.name;setSectionOptions();update()}};
+    }
+    function update(){
+  const data=calculate(),def=integrateDeflection(data.vals);
+  let maxM=0;data.vals.forEach(v=>{if(Math.abs(v.M)>Math.abs(maxM))maxM=v.M});
+  const bending=Math.abs(maxM)*12/sectionData().Sx;
+  const allowable=state.material==="steel"?30:.900;
+  let maxY=0;def.forEach(d=>{if(Math.abs(d.y)>Math.abs(maxY))maxY=d.y});
+  const limit=state.span*12/state.limit;
+  document.querySelector(".check-card:nth-child(1) p").innerHTML=`Actual ${fmt(bending,2)} ksi &nbsp; Allowable ${fmt(allowable,3)} ksi`;
+  document.querySelector(".check-card:nth-child(2) p").innerHTML=`Actual ${fmt(Math.abs(maxY),3)} in &nbsp; Limit ${fmt(limit,3)} in`;
+  setCheck("bending",bending/allowable);setCheck("deflection",Math.abs(maxY)/limit);
+  renderBeam();renderDiagram("shearDiagram","SHEAR",data.vals,"V","#2563eb","k");renderDiagram("momentDiagram","MOMENT",data.vals,"M","#7c3aed","kip-ft");renderDeflection(def);
+  setupHover();recommend();
+    }
+  </script>
+</body>
+</html>
